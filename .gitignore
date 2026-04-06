@@ -2,3 +2,10 @@
 .pixi/*
 !.pixi/config.toml
 data/
+workflow.toml
+.signac
+.row
+.pixi
+.pdm-build
+.idea
+workspace

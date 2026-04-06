@@ -1,0 +1,26 @@
+[workspace]
+value_file = "signac_statepoint.json"
+
+[[actions]]
+name = "docking"
+sp_keys = ["protein", "ligand"]
+outputs = [
+  "docking/result.json",
+  "docking/ligand_input.pdbqt",
+  "docking/ligand_input_vina.pdbqt"
+]
+
+[[actions]]
+name = "md"
+sp_keys = ["p2", "test"]
+deps = { action = "docking", sp_key = "parent_action" }
+outputs = ["s2/out.json"]
+
+[[experiment]]
+  [experiment.docking]
+  protein = "data/maestro.pdbqt"
+  ligand = "data/ligand1.sdf"
+
+  [experiment.md]
+  p2 = 10
+  test = true

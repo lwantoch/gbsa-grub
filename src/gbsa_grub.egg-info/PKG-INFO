@@ -1,0 +1,6 @@
+Metadata-Version: 2.4
+Name: gbsa-grub
+Version: 0.1.0
+Summary: Add your description here
+Requires-Python: >=3.12
+Requires-Dist: grubicy<2,>=1.2.0
