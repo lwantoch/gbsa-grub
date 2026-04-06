@@ -1,7 +1,0 @@
-pyproject.toml
-src/__init__.py
-src/gbsa_grub.egg-info/PKG-INFO
-src/gbsa_grub.egg-info/SOURCES.txt
-src/gbsa_grub.egg-info/dependency_links.txt
-src/gbsa_grub.egg-info/requires.txt
-src/gbsa_grub.egg-info/top_level.txt

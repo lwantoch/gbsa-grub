@@ -9,3 +9,6 @@ workflow.toml
 .pdm-build
 .idea
 workspace
+
+# build metadata
+*.egg-info/
