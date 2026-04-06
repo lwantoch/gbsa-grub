@@ -1,159 +1,269 @@
 # gbsa-grub
 
-[![Status](https://img.shields.io/badge/status-under%20development-orange)](https://github.com/lwantoch/gbsa-grub)
-[![Version](https://img.shields.io/badge/version-0.1.0--dev-blue)](https://github.com/lwantoch/gbsa-grub)
-[![Python](https://img.shields.io/badge/python-3.12+-blue)](https://www.python.org/)
-[![Workflow](https://img.shields.io/badge/workflow-GRUBICY%20%2B%20signac-6f42c1)](https://github.com/lwantoch/gbsa-grub)
+<p align="center">
+  <b>structured molecular workflows</b><br>
+  <sub>Docking → MD → GBSA</sub>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/status-dev-orange">
+  <img src="https://img.shields.io/badge/version-0.1.0--dev-blue">
+  <img src="https://img.shields.io/badge/core-gbsa--pipeline-black">
+  <img src="https://img.shields.io/badge/orchestration-GRUBICY-purple">
+</p>
 
 ---
 
-## Status
+## what is this?
 
-Version: 0.1.0  
-Status: under development  
-Maturity: experimental  
+`gbsa-grub` combines:
 
----
+- **gbsa-pipeline** → scientific computation  
+- **GRUBICY** → workflow orchestration  
+- **signac** → job storage  
 
-## Overview
-
-gbsa-grub is a workflow-oriented project that aims to reconstruct the full gbsa-pipeline inside a GRUBICY / signac execution model.
-
-Instead of running a monolithic pipeline, each step is exposed as a structured action:
-
-- explicit inputs
-- explicit outputs
-- reproducible job directories
-- inspectable intermediate states
+The goal is not to replace existing tools, but to connect them in a way that makes the full workflow understandable and reproducible.  
+Instead of running isolated scripts, each computation becomes part of a structured pipeline with clearly defined inputs, outputs, and dependencies.
 
 ---
 
-## Goal
+## why GRUBICY matters here
 
-The long-term goal is:
+GRUBICY is the core architectural layer of this project.
 
-> represent the entire gbsa-pipeline as a modular, restartable, inspectable workflow
+Without it, workflows typically look like this:
 
-Planned stages:
+```
+scripts → files → confusion
+```
 
-- ligand preparation  
-- docking  
-- parametrization  
-- solvation  
-- minimization  
-- MD  
-- GBSA  
+With GRUBICY:
 
----
+```
+jobs → dependencies → pipeline
+```
 
-## Current Implementation
+This difference is not cosmetic — it fundamentally changes how results are generated, tracked, and reused.
 
-Currently implemented:
+GRUBICY extends signac by introducing:
 
-- docking action
+- explicit **parent–child relationships**
+- support for **multi-stage pipelines**
+- a **single source of truth** for workflow definition
+- safe **schema evolution via migrations**
+- **typed parameters** using Pydantic
 
-The docking step:
-
-- loads ligand via RDKit  
-- converts ligand → PDBQT via Meeko  
-- converts receptor → PDBQT via Open Babel  
-- runs AutoDock Vina  
-- stores results in structured JSON  
-- writes full logs to file  
+This allows us to move from “running things” to actually **building a system**.
 
 ---
 
-## Design Principles
+## core idea (GRUBICY)
 
-1. Minimal JSON output  
-   → workflow-friendly, stable, machine-readable  
+```
+Docking job
+    ↓
+MD job
+    ↓
+GBSA job
+```
 
-2. Full logs on disk  
-   → no bloated JSON  
+Each job:
 
-3. Explicit intermediate files  
-   → easy debugging  
+- knows where it came from  
+- stores its own results  
+- can be reproduced independently  
 
-4. Reuse gbsa-pipeline  
-   → no duplicated chemistry logic  
+This solves a key issue in scientific workflows:
 
-5. Workflow-first architecture  
-   → not scripts, but composable steps  
+```
+same parameters + different parent ≠ same result
+```
+
+GRUBICY ensures these cases are handled correctly.
 
 ---
 
-## Example Output
+## pipeline definition
 
+Instead of scattering logic across scripts, the pipeline is defined centrally:
+
+```
+pipeline.toml
+```
+
+This file describes:
+
+- which stages exist  
+- how they depend on each other  
+- which parameters are required  
+
+As a result, the workflow becomes inspectable and easier to evolve.
+
+---
+
+## current implementation
+
+```
+Docking  ✔ implemented
+MD       ✘ planned
+GBSA     ✘ planned
+```
+
+Current focus is on:
+
+- stabilizing docking  
+- defining clean interfaces for downstream stages  
+- ensuring reproducibility from the beginning  
+
+---
+
+## docking step (implemented)
+
+```
+ligand → RDKit → Meeko → PDBQT
+receptor → OpenBabel → PDBQT
+→ Vina → pose
+```
+
+In more detail:
+
+- ligands are normalized via RDKit  
+- Meeko generates Vina-compatible PDBQT  
+- receptors are converted using OpenBabel  
+- Vina performs docking  
+- outputs are stored in a structured directory  
+
+All transformations are explicit and logged.
+
+---
+
+## job layout
+
+```
+job/
+└── docking/
+    ├── ligand_input.pdbqt
+    ├── receptor.pdbqt
+    ├── ligand_vina_out.pdbqt
+    ├── vina.log
+    └── result.json
+```
+
+Each job is self-contained, which makes debugging and reuse straightforward.
+
+---
+
+## result.json (minimal by design)
+
+```
 {
   "status": "success",
-  "engine": "vina",
-  "prepared_ligand_pdbqt": "...",
   "final_pose_pdbqt": "...",
-  "best_score": -7.4,
-  "log_file": "..."
+  "best_score": -3.8,
+  "log_file": "vina.log"
 }
+```
+
+The JSON intentionally contains only essential information.
+
+Everything else is stored in logs.
 
 ---
 
-## Versioning Strategy
+## logs
 
-While under development:
+All detailed output is written to:
 
-- use 0.x.y versions
+```
+vina.log
+```
 
-Examples:
+This includes:
 
-- 0.1.0 → initial docking integration  
-- 0.2.0 → GBSA integration  
-- 0.3.0 → MD integration  
+- full stdout  
+- full stderr  
+- scoring tables  
+- warnings  
 
-Only move to 1.0.0 when:
-
-- APIs are stable  
-- workflow is complete  
-- outputs are consistent  
-- documentation is solid  
+This separation keeps summaries clean while preserving full traceability.
 
 ---
 
-## Roadmap
+## design principles
 
-Short-term:
-
-- stabilize docking  
-- define output schema  
-- improve logging consistency  
-
-Mid-term:
-
-- integrate GBSA  
-- integrate MD  
-- unify pipeline logic  
-
-Long-term:
-
-- full gbsa-pipeline as GRUBICY workflow  
+- minimal JSON output  
+- full log preservation  
+- explicit transformations  
+- no hidden state  
+- reproducible job structure  
 
 ---
 
-## Summary
+## stack
 
-gbsa-grub is an experimental workflow layer around gbsa-pipeline.
-
-It is:
-
-- modular  
-- reproducible  
-- inspectable  
-
-Current state:
-
-→ early development (0.1.0)
+- RDKit  
+- Meeko  
+- Open Babel  
+- Vina  
+- signac  
+- GRUBICY  
+- gbsa-pipeline  
 
 ---
 
-## Metadata
+## version
 
-Project: gbsa-grub  
-Version: 0.1.0  
-Status: under development  
+```
+0.1.0-dev
+```
+
+This indicates:
+
+- active development  
+- unstable interfaces  
+- focus on iteration  
+
+---
+
+## roadmap
+
+```
+0.2 → MD integration
+0.3 → GBSA integration
+1.0 → stable pipeline
+```
+
+---
+
+## goal
+
+```
+ligand → docking → MD → trajectory → GBSA
+```
+
+The final system should allow:
+
+- full traceability  
+- easy reruns  
+- structured analysis  
+
+---
+
+## tl;dr
+
+before:
+
+```
+run.sh → ??? → results
+```
+
+after:
+
+```
+jobs → dependencies → reproducible pipeline
+```
+
+The shift is simple:
+
+from running commands  
+to building workflows
