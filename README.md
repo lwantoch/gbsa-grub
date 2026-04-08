@@ -16,123 +16,137 @@
 
 ## update (branch: wired)
 
-Current branch: **wired**
+```
+STATUS: pipeline wiring in progress
+PRIORITY: connectivity > correctness
+```
 
-Status:
-- full pipeline connectivity is being established
-- all modules are being connected end-to-end
-- correctness is NOT yet the priority
-- structure and data flow are the focus
-
-Key changes:
-
-- GRUBICY pipeline (`pipeline.toml`) defined and validated
-- action naming unified (`00_docking`, `01_md`, ...)
-- dependency chain established via `deps`
-- signac-compatible job structure in place
-- MD stage connected to docking outputs
-- unified manifest/result.json handling across steps
-- `unigbsa.py` refactored to be workflow-compatible:
-  - request/result model introduced
-  - deterministic output structure
-  - JSON serialization for pipeline integration
-
-Important principle:
-
-> First make everything run. Then make it correct.
+- full pipeline path is being connected end-to-end  
+- modules are integrated, not yet validated  
+- structure and reproducibility are the focus  
 
 ---
 
 ## what is this?
 
-`gbsa-grub` connects:
+`gbsa-grub` connects three layers:
 
-- gbsa-pipeline → scientific logic  
-- GRUBICY → workflow structure  
-- signac → job model  
+| layer | role |
+|------|------|
+| gbsa-pipeline | scientific logic |
+| GRUBICY | workflow orchestration |
+| signac | job/data model |
 
-Goal: structured, reproducible molecular workflows.
+→ result: structured, reproducible molecular workflows
 
 ---
 
 ## why GRUBICY
 
-Without:
+without:
 
-scripts → files → chaos
+```
+run.sh → scripts → files → chaos
+```
 
-With:
+with:
 
+```
 jobs → dependencies → pipeline
+```
 
-GRUBICY gives:
+GRUBICY provides:
 
-- explicit parent-child jobs  
-- reproducible pipelines  
-- central pipeline definition  
-- safe schema evolution  
+- explicit parent-child relationships  
+- deterministic pipelines  
+- central workflow definition (`pipeline.toml`)  
+- reproducible execution  
 
 ---
 
 ## core idea
 
+```
 Docking → MD → GBSA
+```
 
 Each step:
 
 - knows its parent  
-- stores its own data  
-- is reproducible  
-
----
-
-## development strategy
-
-Phase 1 → connectivity (current)
-- wire everything
-- ensure data flows through all stages
-- tolerate incorrect science
-
-Phase 2 → refinement
-- fix chemistry
-- fix parametrization
-- validate outputs
+- produces its own outputs  
+- can be rerun independently  
 
 ---
 
 ## current status (wired)
 
-Docking  ✔ (connected, produces outputs)
-MD       ✔ (connected, not yet validated)
-GBSA     ✘ (next step)
+| step     | status |
+|----------|--------|
+| Docking  | ✔ (wired, box arbitrary) |
+| MD       | ✔ (wired) |
+| GBSA     | ✘ |
 
-Goal:
+---
 
-Docking → MD → GBSA (end-to-end execution)
+## pipeline view
+
+```
+ligand
+  ↓
+docking
+  ↓
+md
+  ↓
+gbsa
+```
+
+---
+
+## development strategy
+
+### phase 1 — wiring (current)
+
+- connect all modules  
+- ensure data flows through pipeline  
+- ignore scientific correctness  
+
+### phase 2 — refinement
+
+- fix chemistry  
+- fix parametrization  
+- validate results  
 
 ---
 
 ## versioning
 
-0.0.1 → pipeline wired (current)  
-0.1.0 → docking working  
-0.2.0 → MD working  
-0.3.0 → GBSA working  
-0.4.0 → stabilization  
-1.0.0 → scientifically usable  
+| version | meaning |
+|--------|--------|
+| 0.0.1 | pipeline wired |
+| 0.1.0 | docking working |
+| 0.2.0 | MD working |
+| 0.3.0 | GBSA working |
+| 0.4.0 | stabilization |
+| 1.0.0 | scientifically usable |
 
 ---
 
 ## goal
 
+```
 ligand → docking → MD → GBSA
+```
 
 ---
 
 ## tl;dr
 
 before:
+```
 run.sh → ??? → results
+```
 
 after:
+```
 jobs → dependencies → pipeline
+```
