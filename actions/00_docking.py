@@ -1,3 +1,5 @@
+# /home/grheco/PycharmProjects/gbsa-grub/actions/00_docking.py
+
 #!/usr/bin/env python3
 
 from __future__ import annotations
@@ -9,6 +11,7 @@ import sys
 import traceback
 import warnings
 from pathlib import Path
+from typing import Any
 
 import signac
 from gbsa_pipeline.docking import (
@@ -42,7 +45,7 @@ class DockingParams(BaseModel):
     ligand: Path
 
 
-def write_json(path: Path, data: dict) -> None:
+def write_json(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
@@ -55,6 +58,37 @@ def ensure_vina() -> None:
 def ensure_obabel() -> None:
     if shutil.which("obabel") is None:
         raise RuntimeError("obabel binary not found in PATH")
+
+
+def _resolve_existing_receptor_path(protein_path: Path) -> Path:
+    """
+    Resolve the receptor path pragmatically for early pipeline wiring.
+
+    Current behavior
+    ----------------
+    - if the provided path exists, use it directly
+    - if it points to a missing .pdbqt file, try the same stem as .pdb
+    - otherwise fail clearly
+
+    This keeps the docking action tolerant when upstream statepoints still
+    reference .pdbqt while only a .pdb receptor is currently present.
+    """
+    protein_path = Path(protein_path).resolve()
+
+    if protein_path.exists():
+        return protein_path
+
+    if protein_path.suffix.lower() == ".pdbqt":
+        pdb_fallback = protein_path.with_suffix(".pdb")
+        if pdb_fallback.exists():
+            LOGGER.info(
+                "Requested receptor %s not found; falling back to existing PDB %s",
+                protein_path,
+                pdb_fallback,
+            )
+            return pdb_fallback
+
+    raise FileNotFoundError(f"Receptor file does not exist: {protein_path}")
 
 
 def _load_ligand_as_rdkit_mol(ligand_path: Path) -> Chem.Mol:
@@ -129,8 +163,15 @@ def main(directory: str) -> None:
         raise
 
 
-def run_docking(protein: Path, ligand: Path, workdir: Path) -> dict:
+def run_docking(protein: Path, ligand: Path, workdir: Path) -> dict[str, Any]:
     workdir.mkdir(parents=True, exist_ok=True)
+
+    receptor_path = _resolve_existing_receptor_path(protein)
+    ligand_path = Path(ligand).resolve()
+
+    LOGGER.info("Resolved receptor input: %s", receptor_path)
+    LOGGER.info("Resolved ligand input: %s", ligand_path)
+    LOGGER.info("Docking workdir: %s", workdir.resolve())
 
     engine = VinaEngine(binary="vina", obabel_binary="obabel")
 
@@ -141,15 +182,15 @@ def run_docking(protein: Path, ligand: Path, workdir: Path) -> dict:
 
     ligand_pdbqt = workdir / "ligand_input.pdbqt"
 
-    ligand_mol = _load_ligand_as_rdkit_mol(ligand)
+    ligand_mol = _load_ligand_as_rdkit_mol(ligand_path)
     prepare_ligand_with_meeko(
         ligand=ligand_mol,
         output_path=ligand_pdbqt,
-        name=ligand.stem,
+        name=ligand_path.stem,
     )
 
     request = DockingRequest(
-        receptor=protein,
+        receptor=receptor_path,
         ligands=[ligand_pdbqt],
         box=box,
         workdir=workdir,
@@ -162,6 +203,7 @@ def run_docking(protein: Path, ligand: Path, workdir: Path) -> dict:
     return {
         "status": "success",
         "engine": result.engine,
+        "receptor_used": str(receptor_path),
         "prepared_ligand_pdbqt": str(ligand_pdbqt),
         "final_pose_pdbqt": str(first_pose.pose_path) if first_pose else None,
         "best_score": first_pose.score if first_pose else None,

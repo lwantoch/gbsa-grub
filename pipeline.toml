@@ -1,26 +1,103 @@
+# /home/grheco/PycharmProjects/gbsa-grub/pipeline.toml
+
+name = "gbsa-grub"
+
 [workspace]
 value_file = "signac_statepoint.json"
 
 [[actions]]
-name = "docking"
-sp_keys = ["protein", "ligand"]
+name = "00_docking"
+sp_keys = [
+  "protein",
+  "ligand",
+  "box_center",
+  "box_size",
+  "seed",
+  "num_modes",
+  "exhaustiveness",
+  "energy_range",
+]
 outputs = [
   "docking/result.json",
   "docking/ligand_input.pdbqt",
-  "docking/ligand_input_vina.pdbqt"
+  "docking/ligand_input_vina_out.pdbqt",
 ]
 
 [[actions]]
-name = "md"
-sp_keys = ["p2", "test"]
-deps = { action = "docking", sp_key = "parent_action" }
-outputs = ["s2/out.json"]
+name = "01_md"
+sp_keys = [
+  "protein_pdb",
+  "parent_docking_result",
+  "prefer_parent_sdf",
+  "protein_ff",
+  "ligand_ff",
+  "charge_method",
+  "ligand_net_charge",
+  "extra_ff_files",
+  "integrator",
+  "nsteps",
+  "dt",
+  "nstxout_compressed",
+  "nstenergy",
+  "nstlog",
+  "solvate",
+  "box_shape",
+  "padding_nm",
+  "ionic_strength_molar",
+  "neutralize",
+  "save_manifest",
+  "save_parametrized_pdb",
+  "save_solvated_pdb",
+  "save_md_final_pdb",
+  "save_md_native_outputs",
+  "md_output_stem",
+]
+deps = { action = "00_docking", sp_key = "parent_action" }
+outputs = [
+  "md_action/result.json",
+  "md/result.json",
+  "md/native_outputs/md.tpr",
+  "md/native_outputs/trajectory.xtc",
+]
 
 [[experiment]]
-  [experiment.docking]
-  protein = "data/maestro.pdbqt"
+  [experiment.00_docking]
+  protein = "data/maestro.pdb"
   ligand = "data/ligand1.sdf"
+  box_center = [7.0, 20.0, 14.0]
+  box_size = [10.0, 10.0, 10.0]
+  seed = 42
+  num_modes = 9
+  exhaustiveness = 8
+  energy_range = 3.0
 
-  [experiment.md]
-  p2 = 10
-  test = true
+  [experiment.01_md]
+  protein_pdb = "data/maestro.pdb"
+  parent_docking_result = "docking/result.json"
+  prefer_parent_sdf = true
+
+  protein_ff = "ff14SB"
+  ligand_ff = "gaff2"
+  charge_method = "am1bcc"
+  ligand_net_charge = 0
+  extra_ff_files = []
+
+  integrator = "md"
+  nsteps = 100
+  dt = 0.001
+  nstxout_compressed = 500
+  nstenergy = 500
+  nstlog = 500
+
+  solvate = true
+  box_shape = "cubic"
+  padding_nm = 1.0
+  ionic_strength_molar = 0.15
+  neutralize = true
+
+  save_manifest = true
+  save_parametrized_pdb = true
+  save_solvated_pdb = true
+  save_md_final_pdb = true
+  save_md_native_outputs = true
+  md_output_stem = "md_final"
