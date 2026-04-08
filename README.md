@@ -1,80 +1,67 @@
 # gbsa-grub
 
-<p align="center">
-  <b>structured molecular workflows</b><br>
-  <sub>Docking → MD → GBSA</sub>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/status-dev-orange">
-  <img src="https://img.shields.io/badge/version-0.0.1--wired-blue">
-  <img src="https://img.shields.io/badge/core-gbsa--pipeline-black">
-  <img src="https://img.shields.io/badge/orchestration-GRUBICY-purple">
-</p>
+structured molecular workflows  
+Docking → MD → GBSA
 
 ---
 
 ## update (branch: wired)
 
-```
-STATUS: pipeline wiring in progress
-PRIORITY: connectivity > correctness
-```
+The project is currently in the *wiring phase*.  
+This means that the primary goal is not scientific correctness, but ensuring that all parts of the pipeline are connected and able to exchange data consistently.
 
-- full pipeline path is being connected end-to-end  
-- modules are integrated, not yet validated  
-- structure and reproducibility are the focus  
+At this stage, the system is being shaped into a coherent workflow where each step produces well-defined outputs that can be consumed by the next step. The focus is therefore on structure, reproducibility, and robustness of execution rather than accuracy of results.
 
 ---
 
 ## what is this?
 
-`gbsa-grub` connects three layers:
+`gbsa-grub` is an attempt to impose structure on molecular simulation workflows by combining three complementary layers.
 
-| layer | role |
-|------|------|
-| gbsa-pipeline | scientific logic |
-| GRUBICY | workflow orchestration |
-| signac | job/data model |
+The **gbsa-pipeline** provides the scientific building blocks (docking, MD, GBSA).  
+**GRUBICY** provides orchestration, i.e. how steps are connected and executed.  
+**signac** provides a job-based data model, allowing each computation to be tracked, reproduced, and extended.
 
-→ result: structured, reproducible molecular workflows
+Together, they form a system where workflows are no longer implicit scripts, but explicit, inspectable pipelines.
 
 ---
 
 ## why GRUBICY
 
-without:
+In many computational chemistry setups, workflows evolve organically:
 
-```
-run.sh → scripts → files → chaos
-```
+run.sh → scripts → files → more scripts → unclear state
 
-with:
+This leads to fragile pipelines where:
+- dependencies are implicit  
+- results are hard to reproduce  
+- small changes break downstream steps  
 
-```
-jobs → dependencies → pipeline
-```
+GRUBICY replaces this with a model where:
+- each step is a defined action  
+- dependencies are explicit  
+- execution order is controlled  
+- outputs are predictable  
 
-GRUBICY provides:
-
-- explicit parent-child relationships  
-- deterministic pipelines  
-- central workflow definition (`pipeline.toml`)  
-- reproducible execution  
+In other words, it turns a collection of scripts into a *system*.
 
 ---
 
 ## core idea
 
-```
+The pipeline follows a simple conceptual flow:
+
 Docking → MD → GBSA
-```
+
+However, the key idea is not the sequence itself, but the structure behind it.
 
 Each step:
-
-- knows its parent  
-- produces its own outputs  
+- knows where its inputs come from  
+- writes outputs in a defined location  
 - can be rerun independently  
+- can be extended without breaking the rest  
+
+This enables incremental development without losing control of the workflow.
 
 ---
 
@@ -82,39 +69,44 @@ Each step:
 
 | step     | status |
 |----------|--------|
-| Docking  | ✔ (wired, box arbitrary) |
-| MD       | ✔ (wired) |
+| Docking  | ✔ (wired, box currently arbitrary) |
+| MD       | ✔ (wired, produces trajectories) |
 | GBSA     | ✘ |
+
+At the moment, docking and MD are already connected.  
+MD produces trajectories (`.xtc`), which confirms that the pipeline is functionally passing data forward.
+
+However, parameters, physical correctness, and numerical stability are not yet validated.
 
 ---
 
 ## pipeline view
 
-```
-ligand
-  ↓
-docking
-  ↓
-md
-  ↓
-gbsa
-```
+ligand  
+↓  
+docking  
+↓  
+md  
+↓  
+gbsa  
 
 ---
 
 ## development strategy
 
-### phase 1 — wiring (current)
+The development follows a strict two-phase philosophy.
 
-- connect all modules  
-- ensure data flows through pipeline  
-- ignore scientific correctness  
+**Phase 1 — wiring (current)**  
+Everything must run end-to-end.  
+Even incorrect outputs are acceptable as long as data flows correctly.
 
-### phase 2 — refinement
+**Phase 2 — refinement**  
+Once the pipeline is stable:
+- force fields are validated  
+- parametrization is corrected  
+- physical realism is ensured  
 
-- fix chemistry  
-- fix parametrization  
-- validate results  
+This separation prevents mixing structural bugs with scientific errors.
 
 ---
 
@@ -133,20 +125,21 @@ gbsa
 
 ## goal
 
-```
+The long-term goal is a fully reproducible workflow:
+
 ligand → docking → MD → GBSA
-```
+
+where each step is:
+- transparent  
+- reproducible  
+- independently testable  
 
 ---
 
 ## tl;dr
 
 before:
-```
-run.sh → ??? → results
-```
+run.sh → ??? → results  
 
 after:
-```
 jobs → dependencies → pipeline
-```
