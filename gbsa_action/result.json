@@ -1,0 +1,4 @@
+{
+  "status": "error",
+  "error": "Required statepoint file does not exist: /home/grheco/PycharmProjects/gbsa-grub/signac_statepoint.json"
+}

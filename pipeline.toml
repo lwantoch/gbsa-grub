@@ -5,6 +5,10 @@ name = "gbsa-grub"
 [workspace]
 value_file = "signac_statepoint.json"
 
+# -----------------------------------------------------------------------------
+# 00 — Docking
+# -----------------------------------------------------------------------------
+
 [[actions]]
 name = "00_docking"
 sp_keys = [
@@ -23,28 +27,36 @@ outputs = [
   "docking/ligand_input_vina_out.pdbqt",
 ]
 
+# -----------------------------------------------------------------------------
+# 01 — MD
+# -----------------------------------------------------------------------------
+
 [[actions]]
 name = "01_md"
 sp_keys = [
   "protein_pdb",
   "parent_docking_result",
   "prefer_parent_sdf",
+
   "protein_ff",
   "ligand_ff",
   "charge_method",
   "ligand_net_charge",
   "extra_ff_files",
+
   "integrator",
   "nsteps",
   "dt",
   "nstxout_compressed",
   "nstenergy",
   "nstlog",
+
   "solvate",
   "box_shape",
   "padding_nm",
   "ionic_strength_molar",
   "neutralize",
+
   "save_manifest",
   "save_parametrized_pdb",
   "save_solvated_pdb",
@@ -54,23 +66,67 @@ sp_keys = [
 ]
 deps = { action = "00_docking", sp_key = "parent_action" }
 outputs = [
-  "md_action/result.json",
-  "md/result.json",
-  "md/native_outputs/md.tpr",
-  "md/native_outputs/trajectory.xtc",
+  "md/md/result.json",
+  "md/md/md_final.pdb",
+  "md/md/native_outputs/trajectory.xtc",
 ]
 
+# -----------------------------------------------------------------------------
+# 02 — GBSA (wired)
+# -----------------------------------------------------------------------------
+
+[[actions]]
+name = "02_gbsa"
+sp_keys = [
+  "parent_md_result",
+
+  "gmx_mmpbsa_binary",
+  "gmx_mmpbsa_extra_args",
+
+  "gbsa_startframe",
+  "gbsa_endframe",
+  "gbsa_interval",
+  "gbsa_temperature",
+  "gbsa_verbose",
+
+  "gbsa_use_gb",
+  "gbsa_use_pb",
+
+  "gbsa_igb",
+  "gbsa_ipb",
+
+  "gbsa_complex_structure",
+  "gbsa_trajectory",
+  "gbsa_topology",
+  "gbsa_index_file",
+]
+deps = { action = "01_md", sp_key = "parent_action" }
+outputs = [
+  "gbsa_action/result.json",
+  "gbsa/result.json",
+  "gbsa/mmpbsa.in",
+  "gbsa/gmx_mmpbsa.stdout.log",
+  "gbsa/gmx_mmpbsa.stderr.log",
+]
+
+# -----------------------------------------------------------------------------
+# Experiment
+# -----------------------------------------------------------------------------
+
 [[experiment]]
+
+  # ---- Docking ----
   [experiment.00_docking]
   protein = "data/maestro.pdb"
   ligand = "data/ligand1.sdf"
-  box_center = [7.0, 20.0, 14.0]
+  box_center = [7.0, 20.0, 14.0]   # currently arbitrary (wired phase)
   box_size = [10.0, 10.0, 10.0]
   seed = 42
   num_modes = 9
   exhaustiveness = 8
   energy_range = 3.0
 
+  # ---- MD ----
   [experiment.01_md]
   protein_pdb = "data/maestro.pdb"
   parent_docking_result = "docking/result.json"
@@ -101,3 +157,27 @@ outputs = [
   save_md_final_pdb = true
   save_md_native_outputs = true
   md_output_stem = "md_final"
+
+  # ---- GBSA ----
+  [experiment.02_gbsa]
+  parent_md_result = "md/md/result.json"
+
+  gmx_mmpbsa_binary = "gmx_MMPBSA"
+  gmx_mmpbsa_extra_args = []
+
+  gbsa_startframe = 1
+  gbsa_endframe = 100
+  gbsa_interval = 10
+  gbsa_temperature = 298.15
+  gbsa_verbose = 1
+
+  gbsa_use_gb = true
+  gbsa_use_pb = true
+
+  gbsa_igb = 5
+  gbsa_ipb = 2
+
+  gbsa_complex_structure = ""
+  gbsa_trajectory = ""
+  gbsa_topology = ""
+  gbsa_index_file = ""
