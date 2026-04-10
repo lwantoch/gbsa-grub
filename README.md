@@ -68,7 +68,7 @@ What breaks first is often not the science, but the structure:
 
 That role matters more than it sounds. In projects like this, the hardest thing is often not writing a docking wrapper or launching a short MD job. The hard part is making those steps behave like parts of one system rather than unrelated local successes. GRUBICY is what gives the workflow a visible spine.
 
-Within `gbsa-grub`, it is therefore the layer that turns “a set of scripts” into “a pipeline with declared behavior.”
+Within `gbsa-grub`, it is therefore the layer that turns “a set of scripts” into “a pipeline with declared behavior.” For the actual package and source, see the GitHub/PyPI project pages. citeturn664331search0turn664331search2turn664331search1
 
 ---
 
