@@ -12,8 +12,8 @@ value_file = "signac_statepoint.json"
 [[actions]]
 name = "00_docking"
 sp_keys = [
-  "protein",
-  "ligand",
+  "protein_pdb",
+  "ligand_sdf",
   "box_center",
   "box_size",
   "seed",
@@ -21,62 +21,147 @@ sp_keys = [
   "exhaustiveness",
   "energy_range",
 ]
+runner = "python actions/00_docking.py {directory}"
 outputs = [
   "docking/result.json",
-  "docking/ligand_input.pdbqt",
-  "docking/ligand_input_vina_out.pdbqt",
+  "docking/docked_ligand.sdf",
 ]
 
 # -----------------------------------------------------------------------------
-# 01 — MD
+# 01 — System setup: parametrization + solvation
 # -----------------------------------------------------------------------------
 
 [[actions]]
-name = "01_md"
+name = "01_system_setup"
 sp_keys = [
-  "protein_pdb",
-  "parent_docking_result",
-  "prefer_parent_sdf",
-
   "protein_ff",
   "ligand_ff",
   "charge_method",
   "ligand_net_charge",
   "extra_ff_files",
 
-  "integrator",
-  "nsteps",
-  "dt",
-  "nstxout_compressed",
-  "nstenergy",
-  "nstlog",
-
   "solvate",
   "box_shape",
   "padding_nm",
   "ionic_strength_molar",
   "neutralize",
-
-  "save_manifest",
-  "save_parametrized_pdb",
-  "save_solvated_pdb",
-  "save_md_final_pdb",
-  "save_md_native_outputs",
-  "md_output_stem",
 ]
 deps = { action = "00_docking", sp_key = "parent_action" }
+runner = "python actions/01_system_setup.py {directory}"
 outputs = [
-  "md/md/result.json",
-  "md/md/md_final.pdb",
-  "md/md/native_outputs/trajectory.xtc",
+  "system_setup/result.json",
+  "system_setup/system.gro",
+  "system_setup/system.top",
 ]
 
 # -----------------------------------------------------------------------------
-# 02 — GBSA (wired)
+# 02 — Steepest-descent minimization
 # -----------------------------------------------------------------------------
 
 [[actions]]
-name = "02_gbsa"
+name = "02_minimization_sd"
+sp_keys = [
+  "protocol_version",
+]
+deps = { action = "01_system_setup", sp_key = "parent_action" }
+runner = "python actions/02_minimization_sd.py {directory}"
+outputs = [
+  "minimization_sd/result.json",
+  "minimization_sd/system.gro",
+  "minimization_sd/system.top",
+]
+
+# -----------------------------------------------------------------------------
+# 03 — Conjugate-gradient minimization
+# -----------------------------------------------------------------------------
+
+[[actions]]
+name = "03_minimization_cg"
+sp_keys = [
+  "protocol_version",
+]
+deps = { action = "02_minimization_sd", sp_key = "parent_action" }
+runner = "python actions/03_minimization_cg.py {directory}"
+outputs = [
+  "minimization_cg/result.json",
+  "minimization_cg/system.gro",
+  "minimization_cg/system.top",
+]
+
+# -----------------------------------------------------------------------------
+# 04 — Restrained NVT heating
+# -----------------------------------------------------------------------------
+
+[[actions]]
+name = "04_equilibration_nvt_heating"
+sp_keys = [
+  "protocol_version",
+]
+deps = { action = "03_minimization_cg", sp_key = "parent_action" }
+runner = "python actions/04_equilibration_nvt_heating.py {directory}"
+outputs = [
+  "equilibration_nvt_heating/result.json",
+  "equilibration_nvt_heating/system.gro",
+  "equilibration_nvt_heating/system.top",
+]
+
+# -----------------------------------------------------------------------------
+# 05 — Restrained NPT equilibration
+# -----------------------------------------------------------------------------
+
+[[actions]]
+name = "05_equilibration_npt_restrained"
+sp_keys = [
+  "protocol_version",
+]
+deps = { action = "04_equilibration_nvt_heating", sp_key = "parent_action" }
+runner = "python actions/05_equilibration_npt_restrained.py {directory}"
+outputs = [
+  "equilibration_npt_restrained/result.json",
+  "equilibration_npt_restrained/system.gro",
+  "equilibration_npt_restrained/system.top",
+]
+
+# -----------------------------------------------------------------------------
+# 06 — Unrestrained NPT equilibration
+# -----------------------------------------------------------------------------
+
+[[actions]]
+name = "06_equilibration_npt"
+sp_keys = [
+  "protocol_version",
+]
+deps = { action = "05_equilibration_npt_restrained", sp_key = "parent_action" }
+runner = "python actions/06_equilibration_npt.py {directory}"
+outputs = [
+  "equilibration_npt/result.json",
+  "equilibration_npt/system.gro",
+  "equilibration_npt/system.top",
+]
+
+# -----------------------------------------------------------------------------
+# 07 — Production
+# -----------------------------------------------------------------------------
+
+[[actions]]
+name = "07_production"
+sp_keys = [
+  "protocol_version",
+]
+deps = { action = "06_equilibration_npt", sp_key = "parent_action" }
+runner = "python actions/07_production.py {directory}"
+outputs = [
+  "production/result.json",
+  "production/system.gro",
+  "production/system.top",
+]
+
+# -----------------------------------------------------------------------------
+# 08 — GBSA
+# -----------------------------------------------------------------------------
+
+[[actions]]
+name = "08_gbsa"
 sp_keys = [
   "parent_md_result",
 
@@ -100,7 +185,8 @@ sp_keys = [
   "gbsa_topology",
   "gbsa_index_file",
 ]
-deps = { action = "01_md", sp_key = "parent_action" }
+deps = { action = "07_production", sp_key = "parent_action" }
+runner = "python actions/08_gbsa.py {directory}"
 outputs = [
   "gbsa_action/result.json",
   "gbsa/result.json",
@@ -117,33 +203,22 @@ outputs = [
 
   # ---- Docking ----
   [experiment.00_docking]
-  protein = "data/maestro.pdb"
-  ligand = "data/ligand1.sdf"
-  box_center = [7.0, 20.0, 14.0]   # currently arbitrary (wired phase)
+  protein_pdb = "data/maestro.pdb"
+  ligand_sdf = "data/ligand1.sdf"
+  box_center = [7.0, 20.0, 14.0]
   box_size = [10.0, 10.0, 10.0]
   seed = 42
   num_modes = 9
   exhaustiveness = 8
   energy_range = 3.0
 
-  # ---- MD ----
-  [experiment.01_md]
-  protein_pdb = "data/maestro.pdb"
-  parent_docking_result = "docking/result.json"
-  prefer_parent_sdf = true
-
+  # ---- System setup ----
+  [experiment.01_system_setup]
   protein_ff = "ff14SB"
   ligand_ff = "gaff2"
   charge_method = "am1bcc"
   ligand_net_charge = 0
   extra_ff_files = []
-
-  integrator = "md"
-  nsteps = 100
-  dt = 0.001
-  nstxout_compressed = 500
-  nstenergy = 500
-  nstlog = 500
 
   solvate = true
   box_shape = "cubic"
@@ -151,16 +226,33 @@ outputs = [
   ionic_strength_molar = 0.15
   neutralize = true
 
-  save_manifest = true
-  save_parametrized_pdb = true
-  save_solvated_pdb = true
-  save_md_final_pdb = true
-  save_md_native_outputs = true
-  md_output_stem = "md_final"
+  # ---- SD minimization ----
+  [experiment.02_minimization_sd]
+  protocol_version = "test_md_v1"
+
+  # ---- CG minimization ----
+  [experiment.03_minimization_cg]
+  protocol_version = "test_md_v1"
+
+  # ---- NVT heating ----
+  [experiment.04_equilibration_nvt_heating]
+  protocol_version = "test_md_v1"
+
+  # ---- NPT restrained ----
+  [experiment.05_equilibration_npt_restrained]
+  protocol_version = "test_md_v1"
+
+  # ---- NPT unrestrained ----
+  [experiment.06_equilibration_npt]
+  protocol_version = "test_md_v1"
+
+  # ---- Production ----
+  [experiment.07_production]
+  protocol_version = "test_md_v1"
 
   # ---- GBSA ----
-  [experiment.02_gbsa]
-  parent_md_result = "md/md/result.json"
+  [experiment.08_gbsa]
+  parent_md_result = "production/result.json"
 
   gmx_mmpbsa_binary = "gmx_MMPBSA"
   gmx_mmpbsa_extra_args = []
