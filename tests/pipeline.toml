@@ -1,4 +1,3 @@
-# pipeline.toml
 
 [workspace]
 value_file = "signac_statepoint.json"

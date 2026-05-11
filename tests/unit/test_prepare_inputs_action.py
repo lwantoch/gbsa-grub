@@ -1,4 +1,3 @@
-# tests/unit/test_prepare_inputs_action.py
 """Unit tests for the prepare-inputs grubicy action.
 
 These tests cover the thin workflow runner that prepares docking inputs from a

@@ -1,4 +1,3 @@
-# tests/unit/test_md_stage_action.py
 """Unit tests for the shared MD-stage grubicy action.
 
 These tests cover the thin workflow runner that is reused by all MD actions in

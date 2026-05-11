@@ -1,4 +1,3 @@
-# actions/export_pose.py
 """Export a docked Vina PDBQT pose to SDF for parametrization.
 
 This action reads ``docking/result.json`` from the direct parent job and converts
