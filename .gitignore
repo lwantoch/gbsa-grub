@@ -12,3 +12,4 @@ workspace
 
 # build metadata
 *.egg-info/
+__pycache__
