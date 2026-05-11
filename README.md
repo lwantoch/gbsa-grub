@@ -5,183 +5,199 @@ Docking → MD → GBSA
 
 ---
 
-## status (wired branch)
+## status
 
-![status](https://img.shields.io/badge/status-wired-blue)
+![status](https://img.shields.io/badge/status-workflow--skeleton-blue)
 ![version](https://img.shields.io/badge/version-0.0.1-lightgrey)
-![phase](https://img.shields.io/badge/phase-wiring-important)
+![phase](https://img.shields.io/badge/phase-orchestration-important)
 ![orchestration](https://img.shields.io/badge/orchestration-GRUBICY-black)
-![python](https://img.shields.io/badge/python-3.11+-blue)
+![python](https://img.shields.io/badge/python-3.12+-blue)
 ![dev](https://img.shields.io/badge/state-under--development-orange)
 
-**Active branch:** `wired`  
-**Current state:** first end-to-end version connected, not yet ready for routine scientific use
+**Current state:** first workflow skeleton for Docking → MD → GBSA development.
 
-This repository currently lives in its **wiring phase**. That means the central question is not yet *“Are the numbers trustworthy?”* but rather *“Can the workflow hold its own shape?”* At this stage, the project is about forcing a molecular simulation pipeline into something explicit: well-defined inputs, well-defined outputs, clear dependencies, and a job structure that can be inspected instead of guessed.
+This repository defines the orchestration layer for a molecular simulation workflow built around `gbsa-pipeline`. The current focus is to make the workflow explicit: each stage has declared inputs, declared outputs, parent dependencies, and job-local artifacts that can be inspected independently.
 
 ---
 
 ## what is this?
 
-`gbsa-grub` is an attempt to turn a familiar computational chemistry pattern
+`gbsa-grub` connects the computational workflow
 
 ```text
-ligand → docking → MD → GBSA
+ligand/protein input → docking → MD → GBSA
 ```
 
-from a loose sequence of scripts into a reproducible workflow system.
+to a structured action-based execution model.
 
-The project combines three layers:
+The repository combines three layers:
 
 | layer | role |
 |------|------|
-| **gbsa-pipeline** | scientific modules (Docking, MD, GBSA) |
-| **GRUBICY** | orchestration (actions, dependencies, execution order) |
-| **signac** | job/data model |
+| **gbsa-pipeline** | scientific library modules: docking, parametrization, solvation, MD, GBSA |
+| **GRUBICY** | workflow orchestration: actions, dependencies, declared products |
+| **signac** | job and workspace model |
 
-Together, these layers make the workflow more than “something that can be run.” They make it something that can be **read**, **traced**, **reproduced**, and later **improved without collapsing under its own complexity**.
-
-In that sense, `gbsa-grub` is not just about getting a docking pose or an MD trajectory. It is about building a workflow where every stage leaves behind a legible state and where downstream computation is driven by structure rather than manual intervention.
+`gbsa-grub` itself should remain thin. It should not reimplement chemistry or simulation logic. Its job is to call `gbsa-pipeline` modules in the correct order and make every workflow boundary visible on disk.
 
 ---
 
-## why this exists
+## workflow overview
 
-A lot of scientific pipelines begin the same way: one script solves one urgent problem, then a second script adapts the output, then a third script quietly assumes a filename convention, and eventually the whole workflow works mostly because the original author still remembers how it is supposed to work.
-
-That is usually enough until the moment it is not.
-
-What breaks first is often not the science, but the structure:
-- files drift
-- assumptions become implicit
-- outputs stop being predictable
-- reruns become hard to interpret
-- extensions become risky
-
-`gbsa-grub` exists to push back against that pattern. Its purpose is to make the workflow explicit enough that the repository itself explains the process.
-
----
-
-## what is GRUBICY?
-
-**GRUBICY** is the orchestration layer used here to define workflows as explicit actions with declared outputs, running on top of **signac**. In practice, it provides the structural glue: what can run, what depends on what, and which artifacts should exist after each step. It does not perform the chemistry itself; it organizes the execution of chemistry-facing modules.
-
-That role matters more than it sounds. In projects like this, the hardest thing is often not writing a docking wrapper or launching a short MD job. The hard part is making those steps behave like parts of one system rather than unrelated local successes. GRUBICY is what gives the workflow a visible spine.
-
-Within `gbsa-grub`, it is therefore the layer that turns “a set of scripts” into “a pipeline with declared behavior.” For the actual package and source, see the GitHub/PyPI project pages.
-
-<https://davide-grheco.github.io/grubicy/>
-
----
-
-## pipeline overview
+Current action chain:
 
 ```text
-ligand
-  ↓
-docking
-  ↓
-md
-  ↓
-gbsa
+prepare_inputs
+→ dock
+→ export_pose
+→ setup_system
+→ md_sd
+→ md_cg
+→ md_nvt_res
+→ md_npt_res
+→ md_npt
+→ md_production
+→ gbsa
 ```
 
-The sequence itself is simple on purpose. The interesting part is not that these stages exist, but that they are now being encoded as inspectable transitions. Each stage should know:
-- where its inputs come from
-- what outputs it is expected to produce
-- how those outputs will be consumed downstream
-- whether it can be rerun without manual cleanup
-
-That is the real design goal.
+The current implementation wires the Docking → MD path and prepares the structure for adding GBSA as the next workflow action. Longer MD calculations and the GBSA stage are intended to run on CESDGA once the MD products are generated in the expected environment.
 
 ---
 
-## current workflow status
+## actions
 
-| step | status | note |
-|------|--------|------|
-| **Docking** | wired | produces job-local docking artifacts |
-| **MD** | wired | consumes docking output and writes trajectories |
-| **GBSA** | wired | connected, but outputs are not yet good/reliable |
+### `prepare_inputs`
 
-This means the first structural milestone has been reached: **data already moves forward through the workflow**. The repository is no longer just a plan. It now contains a functioning pipeline skeleton.
+Prepares docking inputs from the initial protein and ligand files.
 
-At the same time, the current version should still be read as an integration build. The fact that the chain runs is important, but it is not the same as saying the workflow is already scientifically mature.
+Declared products:
+
+```text
+prepare/ligand.pdbqt
+prepare/receptor.pdbqt
+prepare/result.json
+```
+
+### `dock`
+
+Runs AutoDock Vina using the prepared ligand and receptor.
+
+Declared products:
+
+```text
+docking/dockligand_vina_out.pdbqt
+docking/dockligand_vina.log
+docking/result.json
+```
+
+The docking PDBQT is treated as a pose container. It is not the final ligand chemistry source for parametrization.
+
+### `export_pose`
+
+Exports the docked ligand pose to SDF for downstream parametrization.
+
+Declared products:
+
+```text
+export/dockligand_vina_out.sdf
+export/result.json
+```
+
+The exported SDF is the file consumed by the system setup step.
+
+### `setup_system`
+
+Runs parametrization and solvation and writes the solvated GROMACS system.
+
+Declared products:
+
+```text
+setup/solvated.gro
+setup/solvated.top
+setup/result.json
+```
+
+This action currently keeps parametrization and solvation together because the solvation helper uses in-memory objects returned by parametrization.
+
+### MD stages
+
+All MD actions use the shared runner:
+
+```text
+actions/md_stage.py
+```
+
+Each MD stage reads the parent `.gro/.top`, runs one MD helper from `gbsa-pipeline`, saves a new `.gro/.top`, and writes a `result.json`.
+
+Declared products:
+
+```text
+sd/system.gro
+sd/system.top
+sd/result.json
+
+cg/system.gro
+cg/system.top
+cg/result.json
+
+nvt_res/system.gro
+nvt_res/system.top
+nvt_res/result.json
+
+npt_res/system.gro
+npt_res/system.top
+npt_res/result.json
+
+npt/system.gro
+npt/system.top
+npt/result.json
+
+production/system.gro
+production/system.top
+production/result.json
+```
+
+### `gbsa`
+
+GBSA is the next workflow target after MD production outputs are available.
+
+Planned role:
+
+```text
+production MD outputs → GBSA input preparation → endpoint scoring
+```
+
+The intended GBSA implementation belongs to `gbsa-pipeline`; `gbsa-grub` will provide the action boundary and file handoff.
 
 ---
 
-## modules
+## design
 
-### docking
-- AutoDock Vina-based docking stage
-- produces pose files and `result.json`
-- currently wired and passing data forward
-- docking box definition is still provisional in many cases
+The repository follows a thin-runner design.
 
-The docking stage already does what it needs to do for the current phase: it creates a standardized result that downstream steps can discover automatically. That may sound modest, but it is a decisive shift away from manual, one-off execution.
+`gbsa-grub` owns:
 
----
+```text
+- pipeline.toml
+- grubicy action definitions
+- action runners
+- parent/child file handoffs
+- job-local result manifests
+```
 
-### md
-- consumes protein structure + docking pose
-- prefers **Meeko export** (`PDBQT → SDF`) over ad hoc ligand reconstruction
-- parametrization via OpenMM + GAFF
-- solvation and short MD
-- writes trajectory artifacts such as `.xtc`
+`gbsa-pipeline` owns:
 
-The MD step is where structural workflow design starts to matter much more. It has to bridge incompatible worlds: docking-like output on one side, simulation-ready input on the other. In many projects, that bridge is where reproducibility quietly dies. Here, the goal is to make that conversion path explicit and stable enough that it becomes part of the pipeline rather than hidden glue code.
+```text
+- docking helpers
+- ligand/receptor preparation
+- PDBQT → SDF export and chemistry reconstruction
+- parametrization
+- solvation
+- MD helpers
+- GBSA functionality
+```
 
----
-
-### gbsa
-- not yet fully wired
-- planned target: `gmx_MMPBSA` / Uni-GBSA style endpoint scoring
-- intended to consume MD outputs directly from the job structure
-
-GBSA is already wired into the workflow, which means the structural connection exists and the stage can be executed as part of the pipeline. What is still missing is output quality: the current results are not yet in a state that should be treated as reliable endpoint scoring. Structurally, though, the important step has already happened — GBSA is no longer outside the pipeline.
-
----
-
-## development philosophy
-
-### phase 1 — wiring 
-Everything must run end-to-end.  
-Even imperfect or scientifically provisional outputs are acceptable as long as the structure is correct and the workflow behaves coherently.
-
-### phase 2 — refinement (current)
-Once the pipeline shape is stable:
-- docking definitions can be improved
-- parametrization details can be corrected
-- force-field choices can be validated
-- physical and numerical realism can be assessed properly
-
-This separation is intentional. Structural bugs and scientific bugs become much harder to diagnose when they are mixed together. The current branch therefore optimizes first for **connectivity**, because a scientifically perfect module still has little value if it cannot live reliably inside a larger workflow.
-
----
-
-## versioning
-
-| version | meaning |
-|--------|--------|
-| 0.0.1 | pipeline wired |
-| 0.1.0 | docking validated |
-| 0.2.0 | MD validated |
-| 0.3.0 | GBSA working |
-| 0.4.0 | stabilization |
-| 1.0.0 | scientifically usable |
-
-This versioning scheme reflects the actual development logic of the project. A workflow should first become structurally real, then scientifically reliable.
-
----
-
-## design principles
-
-- **explicit > implicit**  
-- **structure > scripts**  
-- **reproducibility > convenience**  
-- **modularity > monolith**
-
-These are not decorative slogans. They are implementation rules. Whenever a shortcut hides state, makes dependencies harder to inspect, or forces downstream steps to guess what happened upstream, it is probably the wrong shortcut for this repository.
+This separation keeps the scientific implementation reusable outside grubicy and keeps the workflow layer easy to inspect.
 
 ---
 
@@ -190,39 +206,113 @@ These are not decorative slogans. They are implementation rules. Whenever a shor
 ```text
 gbsa-grub/
 ├── actions/
-│   ├── 00_docking.py
-│   ├── 01_md.py
-│   └── 02_gbsa.py
+│   ├── prepare_inputs.py
+│   ├── dock.py
+│   ├── export_pose.py
+│   ├── setup_system.py
+│   └── md_stage.py
+├── config/
+│   └── md_params.py
+├── data/
+│   ├── protein.pdb
+│   └── ligand.sdf
+├── tests/
+│   └── unit/
 ├── pipeline.toml
-├── workspace/
-└── data/
+└── workspace/
 ```
 
-The layout is centered around **actions** and **job-local artifacts**. The idea is that both code and outputs should reflect the same workflow structure.
+`workspace/` contains generated job directories and should not be committed.
 
 ---
 
-## current limitations
+## workflow specification
 
-- docking box selection is not yet robust
-- MD is structurally wired but not scientifically validated
-- GBSA is not yet fully connected
-- the workflow is usable as an integration prototype, not yet as a production method
+The workflow is defined in:
 
-That is an acceptable state for this branch. The point of `wired` is to establish control over the workflow before claiming maturity.
+```text
+pipeline.toml
+```
+
+The first smoke experiment currently uses:
+
+```text
+data/protein.pdb
+data/ligand.sdf
+```
+
+Each action declares its products explicitly so grubicy can track workflow progress through file existence and parent dependencies.
+
+---
+
+## testing
+
+Static workflow tests check the `pipeline.toml` contract:
+
+```bash
+pixi run pytest tests/unit/test_pipeline_toml.py -q
+```
+
+Action-level unit tests check the thin runners without running expensive external tools:
+
+```bash
+pixi run pytest tests/unit/test_prepare_inputs_action.py -q
+pixi run pytest tests/unit/test_dock_action.py -q
+pixi run pytest tests/unit/test_export_pose_action.py -q
+pixi run pytest tests/unit/test_setup_system_action.py -q
+pixi run pytest tests/unit/test_md_stage_action.py -q
+```
+
+Validate the grubicy configuration:
+
+```bash
+pixi run grubicy validate pipeline.toml
+```
+
+Inspect the next runnable action:
+
+```bash
+pixi run grubicy submit pipeline.toml --dry-run
+```
+
+Submit one runnable action:
+
+```bash
+pixi run grubicy submit pipeline.toml --limit 1
+```
+
+---
+
+## development phases
+
+| version | target |
+|--------|--------|
+| 0.0.1 | workflow skeleton wired |
+| 0.1.0 | docking stage stabilized |
+| 0.2.0 | MD stage stabilized |
+| 0.3.0 | GBSA stage added and working |
+| 0.4.0 | workflow stabilization |
+| 1.0.0 | scientifically usable workflow |
+
+---
+
+## execution environment
+
+Short smoke tests can be run locally.
+
+Longer MD and GBSA-oriented runs are expected to move to CESDGA because production trajectories and intermediate MD artifacts can exceed local disk capacity.
 
 ---
 
 ## tl;dr
 
-before:
+`gbsa-grub` is the orchestration layer for a Docking → MD → GBSA workflow.
+
 ```text
-run.sh → ??? → results
+gbsa-pipeline = scientific library
+gbsa-grub     = workflow structure
+GRUBICY       = action orchestration
+signac        = job/workspace model
 ```
 
-after:
-```text
-jobs → actions → dependencies → outputs
-```
-
-`gbsa-grub` is the point where the workflow stops being a collection of remembered steps and starts becoming a system.
+The goal is a workflow where each stage is explicit, inspectable, and reusable as part of a larger molecular simulation pipeline.
