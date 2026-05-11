@@ -26,6 +26,10 @@ vina="*"
 
 [tool.pixi.tasks]
 
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
 [tool.pixi.dependencies]
 biosimspace = ">=2025.3.0,<2026"
 pixi-pycharm = ">=0.0.10,<0.0.11"
@@ -34,3 +38,6 @@ gromacs = ">=2025.4,<2026"
 openmmforcefields = ">=0.15.1,<0.16"
 row = ">=1.0.0,<2"
 vina = ">=1.2.6,<2"
+signac = ">=2.3.0,<3"
+pytest = ">=9.0.3,<10"
+gemmi = ">=0.6.7,<0.7"
