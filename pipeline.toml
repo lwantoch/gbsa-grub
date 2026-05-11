@@ -1,26 +1,192 @@
+# pipeline.toml
+
 [workspace]
 value_file = "signac_statepoint.json"
 
-[[actions]]
-name = "docking"
-sp_keys = ["protein", "ligand"]
-outputs = [
-  "docking/result.json",
-  "docking/ligand_input.pdbqt",
-  "docking/ligand_input_vina.pdbqt"
-]
+
+# ---------------------------------------------------------------------------
+# Input preparation
+# ---------------------------------------------------------------------------
 
 [[actions]]
-name = "md"
-sp_keys = ["p2", "test"]
-deps = { action = "docking", sp_key = "parent_action" }
-outputs = ["s2/out.json"]
+name = "prepare_inputs"
+sp_keys = [
+  "protein_pdb",
+  "ligand_sdf",
+  "box_center",
+  "box_size",
+]
+outputs = [
+  "prepare/ligand.pdbqt",
+  "prepare/receptor.pdbqt",
+  "prepare/result.json",
+]
+runner = "pixi run python actions/prepare_inputs.py {directory}"
+
+
+# ---------------------------------------------------------------------------
+# Docking
+# ---------------------------------------------------------------------------
+
+[[actions]]
+name = "dock"
+sp_keys = []
+deps = { action = "prepare_inputs", sp_key = "parent_action" }
+outputs = [
+  "docking/ligand_vina_out.pdbqt",
+  "docking/ligand_vina.log",
+  "docking/result.json",
+]
+runner = "pixi run python actions/dock.py {directory}"
+
+
+# ---------------------------------------------------------------------------
+# Pose export
+# ---------------------------------------------------------------------------
+
+[[actions]]
+name = "export_pose"
+sp_keys = []
+deps = { action = "dock", sp_key = "parent_action" }
+outputs = [
+  "export/ligand_vina_out.sdf",
+  "export/result.json",
+]
+runner = "pixi run python actions/export_pose.py {directory}"
+
+
+# ---------------------------------------------------------------------------
+# System setup: parametrization + solvation in one process
+# ---------------------------------------------------------------------------
+
+[[actions]]
+name = "setup_system"
+sp_keys = [
+  "water_model",
+  "box_shape",
+  "padding_nm",
+  "ion_concentration",
+  "neutralize",
+]
+deps = { action = "export_pose", sp_key = "parent_action" }
+outputs = [
+  "setup/solvated.gro",
+  "setup/solvated.top",
+  "setup/result.json",
+]
+runner = "pixi run python actions/setup_system.py {directory}"
+
+
+# ---------------------------------------------------------------------------
+# MD stage 1: steepest-descent minimization
+# ---------------------------------------------------------------------------
+
+[[actions]]
+name = "md_sd"
+sp_keys = []
+deps = { action = "setup_system", sp_key = "parent_action" }
+outputs = [
+  "sd/system.gro",
+  "sd/system.top",
+  "sd/result.json",
+]
+runner = "pixi run python actions/md_stage.py {directory}"
+
+
+# ---------------------------------------------------------------------------
+# MD stage 2: conjugate-gradient minimization
+# ---------------------------------------------------------------------------
+
+[[actions]]
+name = "md_cg"
+sp_keys = []
+deps = { action = "md_sd", sp_key = "parent_action" }
+outputs = [
+  "cg/system.gro",
+  "cg/system.top",
+  "cg/result.json",
+]
+runner = "pixi run python actions/md_stage.py {directory}"
+
+
+# ---------------------------------------------------------------------------
+# MD stage 3: restrained NVT heating
+# ---------------------------------------------------------------------------
+
+[[actions]]
+name = "md_nvt_res"
+sp_keys = []
+deps = { action = "md_cg", sp_key = "parent_action" }
+outputs = [
+  "nvt_res/system.gro",
+  "nvt_res/system.top",
+  "nvt_res/result.json",
+]
+runner = "pixi run python actions/md_stage.py {directory}"
+
+
+# ---------------------------------------------------------------------------
+# MD stage 4: restrained NPT equilibration
+# ---------------------------------------------------------------------------
+
+[[actions]]
+name = "md_npt_res"
+sp_keys = []
+deps = { action = "md_nvt_res", sp_key = "parent_action" }
+outputs = [
+  "npt_res/system.gro",
+  "npt_res/system.top",
+  "npt_res/result.json",
+]
+runner = "pixi run python actions/md_stage.py {directory}"
+
+
+# ---------------------------------------------------------------------------
+# MD stage 5: unrestrained NPT equilibration
+# ---------------------------------------------------------------------------
+
+[[actions]]
+name = "md_npt"
+sp_keys = []
+deps = { action = "md_npt_res", sp_key = "parent_action" }
+outputs = [
+  "npt/system.gro",
+  "npt/system.top",
+  "npt/result.json",
+]
+runner = "pixi run python actions/md_stage.py {directory}"
+
+
+# ---------------------------------------------------------------------------
+# MD stage 6: production
+# ---------------------------------------------------------------------------
+
+[[actions]]
+name = "md_production"
+sp_keys = []
+deps = { action = "md_npt", sp_key = "parent_action" }
+outputs = [
+  "production/system.gro",
+  "production/system.top",
+  "production/result.json",
+]
+runner = "pixi run python actions/md_stage.py {directory}"
+
+
+# ---------------------------------------------------------------------------
+# First smoke-test experiment
+# ---------------------------------------------------------------------------
 
 [[experiment]]
-  [experiment.docking]
-  protein = "data/maestro.pdbqt"
-  ligand = "data/ligand1.sdf"
+  [experiment.prepare_inputs]
+  protein_pdb = "../gbsa-pipeline/tests/integration_tests/testdata/docking/dockprotein.pdb"
+  ligand_sdf = "../gbsa-pipeline/tests/integration_tests/testdata/docking/dockligand.sdf"
+  box_center = [10.115, 39.148, 53.112]
+  box_size = [10.0, 10.0, 10.0]
 
-  [experiment.md]
-  p2 = 10
-  test = true
+  [experiment.setup_system]
+  water_model = "tip3p"
+  box_shape = "truncated_octahedron"
+  padding_nm = 1.0
+  ion_concentration = 0.15
+  neutralize = true
