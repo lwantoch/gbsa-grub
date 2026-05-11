@@ -33,8 +33,8 @@ name = "dock"
 sp_keys = []
 deps = { action = "prepare_inputs", sp_key = "parent_action" }
 outputs = [
-  "docking/ligand_vina_out.pdbqt",
-  "docking/ligand_vina.log",
+  "docking/dockligand_vina_out.pdbqt",
+  "docking/dockligand_vina.log",
   "docking/result.json",
 ]
 runner = "pixi run python actions/dock.py {directory}"
@@ -49,7 +49,7 @@ name = "export_pose"
 sp_keys = []
 deps = { action = "dock", sp_key = "parent_action" }
 outputs = [
-  "export/ligand_vina_out.sdf",
+  "export/dockligand_vina_out.sdf",
   "export/result.json",
 ]
 runner = "pixi run python actions/export_pose.py {directory}"
@@ -179,8 +179,8 @@ runner = "pixi run python actions/md_stage.py {directory}"
 
 [[experiment]]
   [experiment.prepare_inputs]
-  protein_pdb = "../gbsa-pipeline/tests/integration_tests/testdata/docking/dockprotein.pdb"
-  ligand_sdf = "../gbsa-pipeline/tests/integration_tests/testdata/docking/dockligand.sdf"
+  protein_pdb = "data/protein.pdb"
+  ligand_sdf = "data/ligand.sdf"
   box_center = [10.115, 39.148, 53.112]
   box_size = [10.0, 10.0, 10.0]
 
